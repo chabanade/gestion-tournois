@@ -1,0 +1,31 @@
+{
+  "name": "gestion-tournois",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Application web gratuite de gestion de tournois sportifs amateurs pour associations",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test 'test/**/*.test.js'"
+  },
+  "dependencies": {
+    "@preact/signals": "^1.3.0",
+    "html-to-image": "^1.11.11",
+    "idb-keyval": "^6.2.1",
+    "jspdf": "^2.5.2",
+    "preact": "^10.24.0",
+    "qrcode": "^1.5.4",
+    "sortablejs": "^1.15.3"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.0",
+    "vite": "^5.4.0",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}
