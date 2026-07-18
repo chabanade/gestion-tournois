@@ -1,0 +1,8 @@
+@media print {
+  .topbar, .tabs, .btn-row, button, .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .app { max-width: none; padding: 0; }
+  .card { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+  table.standings th, table.standings td { border-bottom: 1px solid #999; }
+  .bracket { overflow: visible; }
+}

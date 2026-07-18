@@ -1,0 +1,12 @@
+# Déploiement statique de "Gestion de tournois" sur un VPS avec Caddy.
+# 1. npm run build   → génère le dossier dist/
+# 2. Copiez dist/ sur le VPS (ex : /var/www/tournois)
+# 3. Ajoutez ce bloc à votre Caddyfile, puis : caddy reload
+
+tournois.mondomaine.fr {
+    root * /var/www/tournois
+    encode gzip zstd
+    file_server
+    # SPA : toutes les routes retombent sur index.html (routage par hash côté client)
+    try_files {path} /index.html
+}
