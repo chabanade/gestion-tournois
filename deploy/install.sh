@@ -91,9 +91,11 @@ now_stamp() { date +%Y%m%d-%H%M%S; }
 
 # Attend qu'une URL /api/health réponde {"ok":true}. wait_http URL SECONDES
 wait_http() {
-  local url="$1" secs="$2" i
+  local url="$1" secs="$2" i out
   for ((i = 1; i <= secs; i++)); do
-    if curl -fsS --max-time 5 "$url" 2>/dev/null | grep -q '"ok":true'; then
+    # Capture puis test (pas de « | grep -q ») : avec pipefail, grep qui ferme le
+    # tube avant la fin de curl ferait échouer le test alors que tout va bien.
+    if out="$(curl -fsS --max-time 5 "$url" 2>/dev/null)" && [[ "$out" == *'"ok":true'* ]]; then
       return 0
     fi
     sleep 1
@@ -161,7 +163,8 @@ trap on_exit EXIT
 
 # Retire les sauvegardes Caddyfile au-delà des 10 plus récentes.
 rotate_caddy_backups() {
-  ls -1t "$BACKUP_DIR"/Caddyfile.* 2>/dev/null | tail -n +11 | xargs -r rm -f --
+  # « || true » : un dossier sans sauvegarde ne doit jamais interrompre le script (set -e + pipefail).
+  ls -1t "$BACKUP_DIR"/Caddyfile.* 2>/dev/null | tail -n +11 | xargs -r rm -f -- || true
 }
 
 # =============================================================================
@@ -430,9 +433,10 @@ exec 9>"$LOCK"
 flock -n 9 || exit 0
 
 wait_health() {
-  local i
+  local i out
   for ((i = 1; i <= 60; i++)); do
-    if curl -fsS --max-time 5 "$HEALTH_URL" 2>/dev/null | grep -q '"ok":true'; then return 0; fi
+    # Capture puis test (pas de « | grep -q ») : évite le faux échec dû à pipefail.
+    if out="$(curl -fsS --max-time 5 "$HEALTH_URL" 2>/dev/null)" && [[ "$out" == *'"ok":true'* ]]; then return 0; fi
     sleep 1
   done
   return 1
