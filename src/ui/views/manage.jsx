@@ -70,7 +70,13 @@ function Historique({ tournament }) {
     }
     if (e.type === 'CLEAR_RESULT' && m) return `${when} — ${who} : score effacé (${sideLabel(tournament, m, 'home')} vs ${sideLabel(tournament, m, 'away')})`;
     if (e.type === 'IMPORT') return `${when} — restauration complète depuis un fichier`;
-    return `${when} — ${who} : ${e.type}`;
+    const FR = {
+      SET_TEAMS: 'équipes enregistrées', GENERATE_STRUCTURE: 'poules et matchs générés',
+      SET_SCHEDULE: 'réglages du planning', GENERATE_SCHEDULE: 'planning généré',
+      SET_NAME: 'nom du tournoi modifié', SET_BRANDING: 'personnalisation modifiée',
+      SET_RULESET: 'règlement modifié', MOVE_MATCH: 'match déplacé', SWAP_MATCHES: 'deux matchs échangés',
+    };
+    return `${when} — ${who} : ${FR[e.type] || e.type}`;
   };
 
   /** Annule une saisie : remet l'ancienne valeur (ou efface s'il n'y en avait pas). */
