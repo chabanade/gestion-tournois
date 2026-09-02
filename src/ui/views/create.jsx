@@ -31,17 +31,28 @@ export function CreateView() {
     setTeamsText(EXAMPLE_TEAMS.join('\n'));
   }
 
-  function submit() {
-    const t = createNew({ name, format });
-    const teamObjs = teams.map((n, i) => ({ id: makeId('team'), name: n, seed: i + 1 }));
-    dispatch(commands.setTeams(teamObjs));
-    dispatch(commands.generateStructure({
-      groupCount, qualifiersPerGroup: qualifiers, doubleLeg, thirdPlace,
-    }));
-    const [h, m] = start.split(':').map(Number);
-    dispatch(commands.setSchedule({ courts, matchDurationMin: duration, breakMin: pause, startMin: h * 60 + m }));
-    dispatch(commands.generateScheduleCmd());
-    navigate('manage', t.id, { role: 'admin' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    setBusy(true); setError('');
+    try {
+      const { tournament: t, adminToken } = await createNew({ name, format });
+      const teamObjs = teams.map((n, i) => ({ id: makeId('team'), name: n, seed: i + 1 }));
+      dispatch(commands.setTeams(teamObjs));
+      dispatch(commands.generateStructure({
+        groupCount, qualifiersPerGroup: qualifiers, doubleLeg, thirdPlace,
+      }));
+      const [h, m] = start.split(':').map(Number);
+      dispatch(commands.setSchedule({ courts, matchDurationMin: duration, breakMin: pause, startMin: h * 60 + m }));
+      dispatch(commands.generateScheduleCmd());
+      // Mode serveur : le jeton organisateur voyage dans l'URL (lien à garder précieusement).
+      navigate('manage', t.id, adminToken ? { k: adminToken } : { role: 'admin' });
+    } catch (e) {
+      setError(e?.message || 'Création impossible.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   const needGroups = format === 'groupsKnockout';
@@ -101,10 +112,11 @@ export function CreateView() {
       </div>
 
       <div class="btn-row">
-        <button class="btn-primary" disabled={!canSubmit} onClick={submit}>Créer le tournoi</button>
+        <button class="btn-primary" disabled={!canSubmit || busy} onClick={submit}>{busy ? 'Création…' : 'Créer le tournoi'}</button>
         <button class="btn-ghost" onClick={() => navigate('home')}>Annuler</button>
       </div>
       {!canSubmit ? <p class="muted">Il faut au moins {minTeams} équipes pour ce format.</p> : null}
+      {error ? <p class="warn-box">{error}</p> : null}
     </div>
   );
 }

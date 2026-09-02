@@ -1,0 +1,11 @@
+# --- gestion-tournois (début) ---
+# Bloc ajouté automatiquement par /opt/tournois/repo/deploy/install.sh
+# dans /opt/agea/docker/caddy/Caddyfile. Ne rien écrire entre les marqueurs
+# à la main : uninstall.sh retire tout ce qui se trouve entre « début » et « fin ».
+# Certificat Let's Encrypt automatique (Caddy 2.10). Le conteneur « tournois »
+# est joint par son nom sur le réseau Docker « docker_agea ».
+tournois.srv987452.hstgr.cloud {
+    encode gzip zstd
+    reverse_proxy tournois:8787
+}
+# --- gestion-tournois (fin) ---

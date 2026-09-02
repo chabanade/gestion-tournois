@@ -1,0 +1,25 @@
+# Exclu du contexte de build Docker (jamais envoyé au démon Docker).
+# Les dépendances et le build sont refaits proprement DANS l'image.
+node_modules
+server/node_modules
+dist
+dev-dist
+.vite
+
+# Données locales de développement : ne doivent jamais entrer dans une image.
+data
+server/data
+
+# Historique git, logs, fichiers système.
+.git
+.gitignore
+*.log
+.DS_Store
+
+# Inutile à l'exécution.
+test
+server/test
+deploy
+Caddyfile.example
+README.md
+LICENSE

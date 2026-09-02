@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { StandingsTable, MatchRow, BracketView } from '../components.jsx';
 import { navigate } from '../router.js';
+import { prefs } from '../../store/store.js';
 
 /**
  * Mode « écran TV » : diaporama automatique pour un écran à la buvette.
@@ -20,7 +21,7 @@ export function TvView({ tournament }) {
   return (
     <div class="tv">
       <div class="btn-row no-print" style="position:absolute;top:12px;right:12px">
-        <button onClick={() => navigate('manage', tournament.id, { role: 'admin' })}>Quitter</button>
+        <button onClick={() => { const k = prefs.get().tokens?.[tournament.id]; navigate(k ? 'manage' : 'public', tournament.id, k ? { k } : {}); }}>Quitter</button>
       </div>
       <h1>{tournament.name}</h1>
       <h2 class="muted">{slide.title}</h2>

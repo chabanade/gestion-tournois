@@ -1,12 +1,12 @@
 // @ts-check
-import { useState, useRef } from 'preact/hooks';
+import { useState, useRef, useEffect } from 'preact/hooks';
 import { commands, matchWinner } from '../../engine/index.js';
 import { validateSchedule } from '../../engine/index.js';
-import { dispatch } from '../../store/store.js';
-import { navigate, can } from '../router.js';
+import { dispatch, can, session, remote } from '../../store/store.js';
+import { navigate } from '../router.js';
 import { StandingsTable, BracketView, MatchRow, ScoreStepper, SponsorBanner } from '../components.jsx';
 import { SharePanel } from './share.jsx';
-import { hhmm, sideLabel } from '../format.js';
+import { hhmm, sideLabel, scoreText } from '../format.js';
 import { exportPng } from '../../export/imageExport.js';
 
 const TABS = [
@@ -14,28 +14,87 @@ const TABS = [
   ['saisie', 'Saisie scores'],
   ['classements', 'Classements'],
   ['arbre', 'Phases finales'],
+  ['historique', 'Historique'],
   ['perso', 'Personnalisation'],
   ['partage', 'Partage'],
 ];
 
-export function ManageView({ tournament, role }) {
+export function ManageView({ tournament }) {
   const [tab, setTab] = useState('saisie');
+  const s = session.value;
+  const role = s.role;
   const isAdmin = role === 'admin';
-  const visibleTabs = isAdmin ? TABS : TABS.filter(([k]) => ['saisie', 'planning', 'classements', 'arbre'].includes(k));
+  const visibleTabs = TABS.filter(([k]) => {
+    if (['saisie', 'planning', 'classements', 'arbre'].includes(k)) return true;
+    if (k === 'historique') return isAdmin && s.mode === 'server';
+    return isAdmin;
+  });
 
   return (
     <div>
+      {role === 'table' ? <p class="muted">Table de marque — terrain(s) {(s.courts || []).join(', ')} : vous pouvez saisir les scores de vos matchs.</p> : null}
+      {role === 'public' ? <p class="muted">Lecture seule. Pour saisir des scores, utilisez le lien fourni par l'organisateur.</p> : null}
       <div class="tabs">
         {visibleTabs.map(([k, label]) => (
           <button class={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{label}</button>
         ))}
       </div>
       {tab === 'planning' && <Planning tournament={tournament} isAdmin={isAdmin} />}
-      {tab === 'saisie' && <Saisie tournament={tournament} role={role} />}
+      {tab === 'saisie' && <Saisie tournament={tournament} />}
       {tab === 'classements' && <Classements tournament={tournament} />}
       {tab === 'arbre' && <div class="card"><BracketView tournament={tournament} /></div>}
+      {tab === 'historique' && isAdmin && <Historique tournament={tournament} />}
       {tab === 'perso' && isAdmin && <Perso tournament={tournament} />}
       {tab === 'partage' && isAdmin && <SharePanel tournament={tournament} />}
+    </div>
+  );
+}
+
+/* ---------- Historique (journal serveur) : qui a saisi quoi, quand, annulation ---------- */
+function Historique({ tournament }) {
+  const [entries, setEntries] = useState([]);
+  const [error, setError] = useState('');
+  const s = session.value;
+
+  const load = () => remote.journal(tournament.id, s.token).then((r) => setEntries(r.entries)).catch((e) => setError(e.message));
+  useEffect(() => { load(); }, [tournament.seq]);
+
+  const labelOf = (e) => {
+    const m = tournament.matches.find((x) => x.id === e.command?.matchId);
+    const who = e.role === 'table' ? 'table de marque' : e.role === 'admin' ? 'organisateur' : e.role || '?';
+    const when = new Date(e.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (e.type === 'SET_RESULT' && m) {
+      const r = e.command.result;
+      const prev = e.previous ? ` (avant : ${e.previous.homeGoals}-${e.previous.awayGoals})` : '';
+      return `${when} — ${who} : ${sideLabel(tournament, m, 'home')} ${r.homeGoals}-${r.awayGoals} ${sideLabel(tournament, m, 'away')}${prev}`;
+    }
+    if (e.type === 'CLEAR_RESULT' && m) return `${when} — ${who} : score effacé (${sideLabel(tournament, m, 'home')} vs ${sideLabel(tournament, m, 'away')})`;
+    if (e.type === 'IMPORT') return `${when} — restauration complète depuis un fichier`;
+    return `${when} — ${who} : ${e.type}`;
+  };
+
+  /** Annule une saisie : remet l'ancienne valeur (ou efface s'il n'y en avait pas). */
+  function undo(e) {
+    if (e.type !== 'SET_RESULT') return;
+    if (e.previous) dispatch(commands.setResult(e.command.matchId, e.previous));
+    else dispatch(commands.clearResult(e.command.matchId));
+  }
+
+  return (
+    <div class="card">
+      <div class="btn-row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">Historique des saisies</h2>
+        <button class="btn-ghost" onClick={load}>Rafraîchir</button>
+      </div>
+      <p class="muted">Chaque score est tracé (qui, quand, ancienne valeur). « Annuler » remet la valeur précédente.</p>
+      {error ? <div class="warn-box">{error}</div> : null}
+      {entries.length === 0 ? <p class="muted">Aucune saisie pour l'instant.</p> : null}
+      {entries.map((e) => (
+        <div class="match">
+          <div class="teams">{labelOf(e)}</div>
+          {e.type === 'SET_RESULT' ? <button class="btn-ghost" onClick={() => undo(e)}>Annuler</button> : null}
+        </div>
+      ))}
     </div>
   );
 }
@@ -76,13 +135,16 @@ function Planning({ tournament, isAdmin }) {
 }
 
 /* ---------- Saisie des scores ---------- */
-function Saisie({ tournament, role }) {
+function Saisie({ tournament }) {
   const [editing, setEditing] = useState(null);
-  const playable = tournament.matches.filter((m) => m.homeId && m.awayId);
+  const s = session.value;
+  let playable = tournament.matches.filter((m) => m.homeId && m.awayId);
+  // Table de marque : on ne montre QUE ses terrains (écran simple, zéro confusion).
+  if (s.role === 'table') playable = playable.filter((m) => (s.courts || []).includes(m.slot?.court));
   const todo = playable.filter((m) => !m.result?.finished);
   const done = playable.filter((m) => m.result?.finished);
 
-  const editable = (m) => can(role, 'score', m.slot?.court);
+  const editable = (m) => can('score', m.slot?.court);
 
   return (
     <div>
@@ -121,13 +183,27 @@ function ScoreEditor({ tournament, match, onClose }) {
   const isDraw = hg === ag && !forfeit;
   const needPk = isKnockout && isDraw;
 
+  const [sent, setSent] = useState(false);
+
   function save() {
     const result = { homeGoals: hg, awayGoals: ag, finished: true };
     if (forfeit) result.forfeit = forfeit;
     if (needPk || ph || pa) result.penalties = { home: ph, away: pa };
     if (fpH || fpA) result.fairPlay = { home: fpH, away: fpA };
     dispatch(commands.setResult(match.id, result));
-    onClose();
+    // Retour visuel franc pour l'arbitre : « ✓ Envoyé », puis fermeture.
+    setSent(true);
+    setTimeout(onClose, 700);
+  }
+
+  if (sent) {
+    return (
+      <div class="card center" style="border-color:var(--ok)">
+        <div style="font-size:56px">✓</div>
+        <h2 style="color:var(--ok)">Score envoyé</h2>
+        <p class="muted">{sideLabel(tournament, match, 'home')} {hg} - {ag} {sideLabel(tournament, match, 'away')}</p>
+      </div>
+    );
   }
 
   return (

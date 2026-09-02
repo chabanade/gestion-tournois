@@ -10,17 +10,23 @@ export async function qrDataUrl(url) {
   return QRCode.toDataURL(url, { margin: 2, width: 512, errorCorrectionLevel: 'M' });
 }
 
-/** URL publique d'un tournoi (lecture seule). */
+const origin = () => `${location.origin}${location.pathname}`;
+
+/** URL publique d'un tournoi (lecture seule, aucun jeton). */
 export function publicUrl(id) {
-  return `${location.origin}${location.pathname}#/public/${id}`;
+  return `${origin()}#/public/${id}`;
 }
 
-/** URL admin (capability token dans l'URL). */
-export function adminUrl(id) {
-  return `${location.origin}${location.pathname}#/manage/${id}?role=admin`;
+/**
+ * URL de gestion avec jeton (organisateur ou table de marque).
+ * Mode serveur : `k=<jeton>` vérifié par le serveur.
+ * Mode local : `role=admin` / `role=table:1,2` (mono-appareil).
+ */
+export function manageUrl(id, token, localRole = 'admin') {
+  return token ? `${origin()}#/manage/${id}?k=${encodeURIComponent(token)}` : `${origin()}#/manage/${id}?role=${localRole}`;
 }
 
-/** URL table de marque limitée à des terrains. */
-export function tableUrl(id, courts) {
-  return `${location.origin}${location.pathname}#/manage/${id}?role=table:${courts.join(',')}`;
+/** URL du mode écran TV (lecture seule). */
+export function tvUrl(id) {
+  return `${origin()}#/tv/${id}`;
 }

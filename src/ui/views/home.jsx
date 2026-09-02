@@ -1,6 +1,6 @@
 // @ts-check
 import { useEffect, useState } from 'preact/hooks';
-import { listTournaments } from '../../store/store.js';
+import { listTournaments, session, prefs } from '../../store/store.js';
 import { importJson } from '../../store/persistence.js';
 import { navigate } from '../router.js';
 import { formatName } from '../format.js';
@@ -8,6 +8,7 @@ import { formatName } from '../format.js';
 export function HomeView() {
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
+  const s = session.value;
 
   useEffect(() => { listTournaments().then(setItems); }, []);
 
@@ -16,10 +17,16 @@ export function HomeView() {
     if (!file) return;
     try {
       const t = await importJson(file);
-      navigate('manage', t.id, { role: 'admin' });
+      openTournament(t.id);
     } catch (err) {
       setError(err.message || 'Import impossible.');
     }
+  }
+
+  /** Ouvre avec le jeton organisateur mémorisé sur cet appareil (mode serveur). */
+  function openTournament(id) {
+    const tok = prefs.get().tokens?.[id];
+    navigate('manage', id, tok ? { k: tok } : { role: 'admin' });
   }
 
   return (
@@ -27,6 +34,11 @@ export function HomeView() {
       <div class="card center">
         <h1>Gestion de tournois</h1>
         <p class="muted">Créez, gérez et diffusez un tournoi complet — gratuitement, même hors ligne.</p>
+        {s.mode === 'server'
+          ? <p class="muted">✅ Serveur connecté : scores en direct sur tous les écrans, sauvegardes automatiques.</p>
+          : s.mode === 'local'
+            ? <p class="muted">Mode mono-appareil : les données restent dans ce navigateur. Pensez à exporter.</p>
+            : null}
         <div class="btn-row" style="justify-content:center">
           <button class="btn-primary" onClick={() => navigate('create')}>Nouveau tournoi</button>
           <label class="btn btn-ghost" style="margin:0">
@@ -38,12 +50,12 @@ export function HomeView() {
       </div>
 
       <div class="card">
-        <h2>Mes tournois</h2>
+        <h2>Mes tournois <span class="muted">(sur cet appareil)</span></h2>
         {items.length === 0 ? (
           <div class="empty">Aucun tournoi pour l'instant. Créez-en un !</div>
         ) : (
           items.map((t) => (
-            <div class="match" onClick={() => navigate('manage', t.id, { role: 'admin' })} style="cursor:pointer">
+            <div class="match" onClick={() => openTournament(t.id)} style="cursor:pointer">
               <div class="teams">
                 <strong>{t.name}</strong>
                 <div class="muted">{formatName(t.format)} — {t.teams.length} équipes</div>
